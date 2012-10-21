@@ -40,5 +40,6 @@ class Entry(object):
             msg.format(*args, **kwargs)
         )
 
+    @property
     def path(self):
         return " -> ".join(self.pipeline)

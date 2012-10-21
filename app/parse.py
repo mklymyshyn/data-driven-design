@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import datetime
+import re
 
 from bs4 import BeautifulSoup
 
@@ -33,7 +34,15 @@ def parse_structured_data(data):
 def parse_yandex(data):
     log("Processing data {}".format(id(data)), level="parse_yandex")
 
-    doc = BeautifulSoup(data)
+    weather_map = {
+        "bkn_d.png": "Sunny with clouds",
+        "skc_d.png": "Sunny"
+    }
+
+    try:
+        doc = BeautifulSoup(data)
+    except TypeError:
+        return
 
     # should be extended
     months_map = {
@@ -44,7 +53,7 @@ def parse_yandex(data):
 
     dates = []
     months = []
-    temperaturs = []
+    temperatures = []
 
     for elem in doc.find_all("div"):
         try:
@@ -54,19 +63,23 @@ def parse_yandex(data):
                 months.append(
                     months_map[elem.text.strip().encode("utf-8")])
             if u"b-forecast-detailed__temp" in elem["class"]:
-                temperaturs.append(elem.text)
-        except:
-            pass
+                temperatures.append(elem.text)
+        except KeyError:
+            continue
 
     image_srcs = []
     for elem in doc.find_all("img"):
-        if "30x30" in elem["src"]:
-            image_srcs.append(elem["src"])
+        try:
+            if "30x30" in elem["src"]:
+                image_srcs.append(elem["src"])
+        except KeyError:
+            continue
 
-    weather_map = {
-        "bkn_d.png": "Sunny with clouds",
-        "skc_d.png": "Sunny"
-    }
+    temperatures = map(
+        lambda s: re.search(r"([\+\-]\d+)", s).groups(0)[0],
+        temperatures
+    )
+
     weather = []
     for img in image_srcs:
         weather_title = "Unknown"
@@ -77,9 +90,14 @@ def parse_yandex(data):
 
         weather.append(weather_title)
 
+    weather = weather[2:]
     for wr in range(0, len(weather), 4):
+        if len(months) == 0 or len(dates) == 0:
+            break
+
         yield Entry(
-            weather=weather[wr],
+            weather=weather[wr + 1],
+            temperature=int(temperatures[wr + 1]),
             date=datetime.datetime(
                 year=year,
                 month=months.pop(0),
